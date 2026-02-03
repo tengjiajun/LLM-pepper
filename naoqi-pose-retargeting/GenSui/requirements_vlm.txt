@@ -1,0 +1,91 @@
+# VLM机器人跟随系统依赖包
+# 基于笔记本前置摄像头和Vision-Language Model的机器人跟随功能
+
+# 基础依赖
+opencv-python>=4.5.3.56
+requests>=2.25.0
+numpy>=1.21.2
+
+# 图像处理和编码
+Pillow>=8.0.0
+base64-tools>=1.0.0
+
+# JSON处理（Python内置，无需安装）
+# json
+
+# 日志和时间处理（Python内置）
+# logging
+# datetime
+# time
+
+# 可选依赖 - 用于性能优化和可视化
+matplotlib>=3.4.3  # 用于数据可视化和调试
+scipy>=1.7.0       # 用于信号处理和滤波
+
+# VLM相关依赖 - 开源替代方案
+# 如果使用本地LLaVA而非OpenAI API，需要以下依赖
+transformers>=4.20.0  # Hugging Face transformers
+torch>=1.12.0         # PyTorch（如果使用本地VLM）
+torchvision>=0.13.0   # 计算机视觉支持
+
+# Qwen / 本地多模态模型依赖
+transformers>=4.40.0
+accelerate>=0.30.0
+sentencepiece
+safetensors
+# Torch 不同平台请自行选择正确指令安装（CPU示例）
+# pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# NAOqi依赖 - 仅在部署到Pepper机器人时需要
+# naoqi-python==2.5.x  # 需要Python 2.7环境
+# 注意：NAOqi SDK需要从SoftBank Robotics官网下载
+
+# 开发和调试工具（可选）
+ipython>=7.0.0        # 交互式开发
+jupyter>=1.0.0        # Jupyter notebook支持
+debugpy>=1.6.0        # 调试器
+
+# 网络和API工具
+urllib3>=1.26.0       # HTTP客户端
+certifi>=2021.5.25    # SSL证书
+
+# 多线程和异步处理（Python内置）
+# threading
+# queue
+# asyncio
+
+# 系统监控和性能分析（可选）
+psutil>=5.8.0         # 系统资源监控
+memory-profiler>=0.60.0  # 内存使用分析
+
+# 配置管理（可选）
+python-dotenv>=0.19.0    # 环境变量管理
+configparser            # 配置文件解析（Python内置）
+
+# 错误处理和重试机制
+tenacity>=8.0.0          # 重试装饰器
+
+# 数据序列化
+pickle                   # Python内置
+joblib>=1.1.0           # 更高效的序列化
+
+# 时间和定时器增强
+schedule>=1.1.0         # 任务调度
+python-dateutil>=2.8.0  # 日期时间处理增强
+
+# 文件和路径处理（Python内置优先）
+# os
+# pathlib
+# glob
+
+# 安全和加密（如果需要加密API密钥）
+cryptography>=3.4.0    # 加密库
+
+# 测试框架（开发时使用）
+pytest>=6.0.0          # 单元测试
+pytest-cov>=2.12.0     # 测试覆盖率
+
+# 代码质量工具（开发时使用）
+flake8>=3.9.0          # 代码风格检查
+black>=21.0.0          # 代码格式化
+pylint>=2.8.0          # 代码质量分析
