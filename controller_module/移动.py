@@ -26,9 +26,9 @@ class MODULE_CLASS(base_class):
 
     def update(self, controller):
         s = f"移动模式（F1）: {self.active} 当前按键：{' '.join([chr(i) for i in self.key])}"
-        map_status = f" | 地图（F2）: {self.map_stream_active}"
-        controller.text(s + map_status, "red" if self.active else "black")
-        
+        #map_status = f" | 地图（F2）: {self.map_stream_active}"
+        #controller.text(s + map_status, "red" if self.active else "black")
+        controller.text(s, "red" if self.active else "black")
         if self.active:
             if self.key or self.key != self.last_key:
                 self.client.send(str(self.key).encode())

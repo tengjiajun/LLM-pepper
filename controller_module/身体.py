@@ -87,8 +87,8 @@ class MODULE_CLASS(base_class):
     def update(self, controller):
         s = (
             f"身体模式（F5）: {self.active} "
-            f"姿态模仿（F11）: {self.pose_stream_active} "
             f"当前按键：{' '.join([chr(i) for i in self.key])}"
+            f"姿态模仿（F11）: {self.pose_stream_active} "
         )
         controller.text(s, "red" if self.active else "black")
         if self.active:
