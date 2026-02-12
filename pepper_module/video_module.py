@@ -7,6 +7,7 @@ from io import BytesIO
 import io
 #import imageio
 import time
+import threading
 
 def numpy_array_to_jpeg_bytes(array):
     print("start jpg")
@@ -24,14 +25,19 @@ def numpy_array_to_jpeg_bytes(array):
 class video_module:
     def __init__(self, app, socket):
         self.socket = socket
+        self.handle = None
+        self.running = False
+        self.lock = threading.Lock()
         self.video = app.session.service("ALVideoDevice")
-        self.video.unsubscribe("video1_0")
+        try:
+            self.video.unsubscribe("video1_0")
+        except Exception:
+            pass
         self.handle = self.video.subscribeCamera("video1", 3, 14, 11, 30)
         print(self.handle)
         if not self.handle:
             print("subscribe video fail")
         self.running = True
-        self.lock = threading.Lock()
         self.run()
         #self.th=threading.Thread(target=self.run)
         #self.th.start()
@@ -42,6 +48,8 @@ class video_module:
             image = self.video.getImageRemote(self.handle)
             if image is None:
                 print("get image fail ,try to restart program or pepper")
+                time.sleep(0.2)
+                continue
             image_binary = image[6]
             #print(image_binary[:50])
             #print(str(image_binary[:50]))
@@ -77,8 +85,12 @@ class video_module:
    
 
     def stop(self):
-        self.runnning = False
+        self.running = False
 
     def __del__(self):
-        self.runnning = False
-        self.video.unsubscribe(self.handle)
+        try:
+            self.running = False
+            if getattr(self, "video", None) is not None and getattr(self, "handle", None):
+                self.video.unsubscribe(self.handle)
+        except Exception:
+            pass

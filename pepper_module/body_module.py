@@ -2,7 +2,7 @@ import json
 import threading
 import time
 import os
-import action
+from pepper_module import action
 from collections import deque
 #from pepper_module.joint_smoother import (
 #    build_control_points,
@@ -48,7 +48,6 @@ class body_module:
         #self.pose_queue = deque()
         #self.pose_queue_lock = threading.Lock()
         #self.max_pose_queue = 100 
-        self.pose = None
         threading.Thread(target=self.run).start()
 
     def init_pos(self):
@@ -74,18 +73,7 @@ class body_module:
                 self.bodys = []
             else:
                 time.sleep(0.1)
-            if self.pose:
-                try:
-                    self.joint_names = self.pose.get("joint_names", [])
-                    self.angles = self.pose.get("angles", [])
-                    print(self.pose)
-                    if self.pose.get("angles") != None:
-                      self.motion.setAngles(self.joint_names, self.angles, 0.1)
-                    print(self.joint_names,self.angles)
-                    time.sleep(0.02)
-                except Exception as e:
-                    print("error: "+e)
-                
+
 
     def bend_body(self, angle):
         if not self.bending:
@@ -115,15 +103,6 @@ class body_module:
         else:
             try:
                 command = json.loads(data)
-                if command.get('function') == 'open_external_video':
-                   self.pose = command
-                   #print(self.pose)
-                   # with self.pose_queue_lock:
-                   #     if len(self.pose_queue) >= self.max_pose_queue:
-                   #         self.pose_queue.popleft()
-                   #     self.pose_queue.append(command)
-                   return  
-
                 if command.get("angles") and command.get('function') == 'set_angles':
                     angles = command.get("angles")
                     joint_names = command.get("joint_names")
@@ -166,7 +145,7 @@ class body_module:
                     self.actionControl.customize(joint_names, times, control_points)
 
                 else:
-                    intent= command.get("intent")
+                    intent = command.get("intent")
                     slots = command.get("params", {})
                     print(intent)
                     if intent == u'bend_body':

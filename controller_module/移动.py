@@ -50,9 +50,9 @@ def set_active(key: int, controller: MovementController):
         obj.last_time = time.time()
 
 
-@register(pygame.K_F2)
+@register(pygame.K_F10)
 def toggle_map_stream(key: int, controller: MovementController):
-    """Toggle SLAM map video stream (F2 key)"""
+    """Toggle SLAM map video stream (F10 key)."""
     obj: MODULE_CLASS
     obj = controller.obj[MODULE_NAME]
     

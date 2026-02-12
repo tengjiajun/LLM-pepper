@@ -1,5 +1,8 @@
 # coding=utf-8
 # ����Ĵ��벻Ҫ�޸ģ�
+import os
+import time
+
 from util.Config import *
 from communication.Client import Client
 
@@ -87,6 +90,11 @@ from pepper_module.body_module import body_module
 bodyModule = body_module(app, 50, 1)
 bodySocket = Client(SERVER_IP, SERVER_PORT, "body", "receiver", bodyModule.body)
 
+from pepper_module.pose_stream import PoseStreamModule
+
+poseStreamModule = PoseStreamModule(app, interval_sec=0.02, speed=0.1)
+poseStreamSocket = Client(SERVER_IP, SERVER_PORT, "pose_stream", "receiver", poseStreamModule.handle)
+
 
 from pepper_module.wrist_module import wrist_module
 
@@ -104,7 +112,34 @@ except:
 #     raw_input()
 # except:
 #     pass
-moveSocket.stop()
-videoSocket.stop()
-#videoModule.stop()
-os._exit(0)
+
+
+def _env_flag(name, default=False):
+    v = os.getenv(name)
+    if v is None:
+        return default
+    v = str(v).strip().lower()
+    return v not in {"0", "false", "no", "off", ""}
+
+
+def _shutdown():
+    try:
+        moveSocket.stop()
+    except Exception:
+        pass
+    try:
+        videoSocket.stop()
+    except Exception:
+        pass
+
+
+_keepalive = _env_flag("PEPPER_KEEPALIVE", True)
+if _keepalive:
+    print("[LLM-pepper] Pepper started. Press Ctrl+C to exit.")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+
+_shutdown()

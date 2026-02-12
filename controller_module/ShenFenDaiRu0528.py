@@ -3,6 +3,8 @@ import socket
 import threading
 from pathlib import Path
 import sys
+import os
+import argparse
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
@@ -27,6 +29,11 @@ class PepperServer:
         """启动服务器"""
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # Allow quick restart on the same port.
+            try:
+                self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            except Exception:
+                pass
             self.server_socket.bind((self.host, self.port))
             self.server_socket.listen(1)
             self.running_event.set()
@@ -56,6 +63,14 @@ class PepperServer:
                     
         except Exception as e:
             print(f"服务器启动失败: {str(e)}")
+            if isinstance(e, OSError) and getattr(e, "winerror", None) == 10048:
+                print(
+                    "端口被占用：可能你已经运行过一个同端口的控制服务器，或其他程序占用了该端口。\n"
+                    "解决方法：\n"
+                    "1) 关闭已运行的脚本窗口/进程；或\n"
+                    "2) 换端口启动：python ShenFenDaiRu0528.py --port 5567；或\n"
+                    "3) 查占用进程：netstat -ano | findstr :5566，然后 taskkill /PID <pid> /F"
+                )
         finally:
             self.stop()
 
@@ -63,13 +78,22 @@ class PepperServer:
         """停止服务器"""
         self.running_event.clear()
         if self.server_socket:
-            self.server_socket.close()
+            try:
+                self.server_socket.close()
+            except Exception:
+                pass
+            self.server_socket = None
             print("Pepper控制服务器已停止")
             print(f"最终缓存内容: {json.dumps(self.json_cache, ensure_ascii=False, indent=2)}")
 
 def main():
+    parser = argparse.ArgumentParser(description="Pepper 控制服务器（LLM Router）")
+    parser.add_argument("--host", default=os.getenv("PEPPER_CTRL_HOST", "localhost"))
+    parser.add_argument("--port", type=int, default=int(os.getenv("PEPPER_CTRL_PORT", "5566")))
+    args = parser.parse_args()
+
     # 创建并启动 Pepper 服务器
-    pepper_server = PepperServer()
+    pepper_server = PepperServer(host=args.host, port=args.port)
     server_thread = threading.Thread(target=pepper_server.start)
     server_thread.start()
 

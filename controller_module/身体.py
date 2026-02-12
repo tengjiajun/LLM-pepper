@@ -20,6 +20,7 @@ class MODULE_CLASS(base_class):
         self.key = []
         self.last_time = 0
         self.client = Client(SERVER_IP, SERVER_PORT, "body", "sender", None)
+        self.pose_stream_client = Client(SERVER_IP, SERVER_PORT, "pose_stream", "sender", None)
 
         # 姿态识别流（转发给 Pepper Server，再由 Server 转发给 body_module）
         self.pose_stream_active = False
@@ -38,6 +39,7 @@ class MODULE_CLASS(base_class):
         if self.pose_stream_thread and self.pose_stream_thread.is_alive():
             return
         self.pose_stream_stop.clear()
+        self._send_pose_stream_control(stream_active=True, record=False)
         self.pose_stream_thread = threading.Thread(
             target=self._pose_stream_loop,
             name="pose_stream_forwarder",
@@ -47,6 +49,15 @@ class MODULE_CLASS(base_class):
 
     def _stop_pose_stream(self):
         self.pose_stream_stop.set()
+        self._send_pose_stream_control(stream_active=False, record=False)
+
+    def _send_pose_stream_control(self, stream_active: bool, record: bool):
+        payload = {
+            "function": "pose_stream_control",
+            "stream_active": stream_active,
+            "record": record,
+        }
+        self.pose_stream_client.send(json.dumps(payload, ensure_ascii=False).encode())
 
     def _pose_stream_loop(self):
         while not self.pose_stream_stop.is_set():
@@ -77,9 +88,9 @@ class MODULE_CLASS(base_class):
                         if "function" not in data:
                             data["function"] = "open_external_video"
 
-                        # 通过 Pepper Server.py 转发给 group==body 的客户端（机器人端 body_module）
+                        # 通过 Pepper Server.py 转发给 group==pose_stream 的客户端（机器人端 pose_stream）
                         payload = json.dumps(data, ensure_ascii=False).encode()
-                        self.client.send(payload)
+                        self.pose_stream_client.send(payload)
             except Exception:
                 # 连接失败/中断：稍等后自动重连
                 time.sleep(1.0)
