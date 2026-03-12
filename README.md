@@ -108,11 +108,11 @@ PowerShell：
 
 `python server.py`
 
-2) 启动 Unitree 执行端（mock，仅打印 cmd_vel）：
+1) 启动 Unitree 执行端（mock，仅打印 cmd_vel）：
 
 `python unitree.py --backend mock`
 
-3) 启动控制端（键盘/语音/LLM）：
+1) 启动控制端（键盘/语音/LLM）：
 
 `python controller.py`
 

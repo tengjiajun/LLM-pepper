@@ -129,6 +129,26 @@ def main() -> None:
         help="Demo frequency (Hz) for --demo.",
     )
     parser.add_argument(
+        "--demo-trigger",
+        action="store_true",
+        help=(
+            "Only play --demo when triggered by a key from controller.py; can be retriggered without closing the viewer. "
+            "Works when --key-torque or --teleop is enabled (so we receive key lists)."
+        ),
+    )
+    parser.add_argument(
+        "--demo-duration",
+        type=float,
+        default=2.5,
+        help="Seconds to play the demo after each trigger when --demo-trigger is enabled.",
+    )
+    parser.add_argument(
+        "--demo-trigger-key",
+        type=str,
+        default="r",
+        help="Trigger key (single character) used by --demo-trigger. Default: r",
+    )
+    parser.add_argument(
         "--teleop",
         action="store_true",
         help="Teleop from controller.py via server.py move group (WASD/QE).",
@@ -422,7 +442,10 @@ def main() -> None:
         except Exception as e:
             raise SystemExit(f"teleop init failed: {e!r}")
 
-    if args.key_torque:
+    if args.demo_trigger and str(args.demo) == "none":
+        print("[mujoco_sim_view] warning: --demo-trigger set but --demo is none; trigger will do nothing")
+
+    if args.key_torque or args.demo_trigger:
         try:
             from communication.Client import Client
 
@@ -441,11 +464,51 @@ def main() -> None:
             key_clients.append(Client(args.server_ip, int(args.server_port), "body", "mujoco_h1", _mk_cb(body_keys)))
             key_clients.append(Client(args.server_ip, int(args.server_port), "active_1", "mujoco_h1", _mk_cb(active1_keys)))
             key_clients.append(Client(args.server_ip, int(args.server_port), "active_2", "mujoco_h1", _mk_cb(active2_keys)))
-            print(
-                f"[mujoco_sim_view] key-torque enabled: {args.server_ip}:{args.server_port} groups=head,wrist,body,active_1,active_2"
-            )
+            if args.key_torque:
+                print(
+                    f"[mujoco_sim_view] key-torque enabled: {args.server_ip}:{args.server_port} groups=head,wrist,body,active_1,active_2"
+                )
+            if args.demo_trigger:
+                print(
+                    f"[mujoco_sim_view] demo-trigger enabled: press '{str(args.demo_trigger_key)}' in controller.py to replay demo"
+                )
         except Exception as e:
             raise SystemExit(f"key-torque init failed: {e!r}")
+
+    demo_trigger_enabled = bool(args.demo_trigger) and str(args.demo) != "none"
+    demo_trigger_codes: set[int] = set()
+    try:
+        k = str(args.demo_trigger_key)
+        if k:
+            demo_trigger_codes.add(ord(k[0].lower()))
+            demo_trigger_codes.add(ord(k[0].upper()))
+    except Exception:
+        demo_trigger_codes = set()
+    demo_play_until: float = -1.0
+    prev_demo_key_down: bool = False
+
+    def update_demo_trigger(sim_t: float) -> None:
+        """Update demo playback window based on controller key lists."""
+
+        nonlocal demo_play_until, prev_demo_key_down
+        if not demo_trigger_enabled or not demo_trigger_codes:
+            return
+
+        with key_lock:
+            keys = set(teleop_keys)
+            keys |= set(head_keys)
+            keys |= set(wrist_keys)
+            keys |= set(body_keys)
+            keys |= set(active1_keys)
+            keys |= set(active2_keys)
+
+        down = any(int(code) in keys for code in demo_trigger_codes)
+        if down and (not prev_demo_key_down):
+            dur = float(args.demo_duration)
+            if dur <= 0:
+                dur = 0.1
+            demo_play_until = float(sim_t) + dur
+        prev_demo_key_down = bool(down)
 
     def teleop_desired_local_vel() -> tuple[float, float, float]:
         if not args.teleop:
@@ -640,6 +703,13 @@ def main() -> None:
 
     def demo_delta_for_actuator(act_id: int, t: float) -> float:
         if args.demo == "none":
+            return 0.0
+
+        # Use simulation time as the demo time base for consistent playback.
+        t = float(data.time)
+
+        # If demo-trigger is enabled, only play inside the trigger window.
+        if demo_trigger_enabled and float(data.time) > float(demo_play_until):
             return 0.0
 
         act_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_ACTUATOR, act_id)
@@ -871,6 +941,7 @@ def main() -> None:
         try:
             while time.time() < end_t:
                 t = time.time() - start
+                update_demo_trigger(float(data.time))
                 data.qfrc_applied[:] = 0
                 if args.ui_angle:
                     apply_ui_angle_pd(t)
@@ -915,6 +986,7 @@ def main() -> None:
                     loop_start = time.time()
 
                     t = loop_start - start
+                    update_demo_trigger(float(data.time))
                     data.qfrc_applied[:] = 0
                     if args.ui_angle:
                         apply_ui_angle_pd(t)
@@ -948,6 +1020,7 @@ def main() -> None:
     # viewer=launch: the viewer drives stepping, so we attach a control callback.
     def mj_control_callback(m: mujoco.MjModel, d: mujoco.MjData) -> None:  # noqa: ARG001
         t = float(d.time)
+        update_demo_trigger(t)
         # In viewer=launch, we can still support ui-angle by applying generalized forces
         # while keeping d.ctrl intact for UI display.
         if args.ui_angle:

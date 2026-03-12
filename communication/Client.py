@@ -21,17 +21,25 @@ class Client:
         self.connecting = False
         self.lock = threading.Lock()
         self.s = None
+        self.listener_thread = None
         self.connect_socket()
         self.callback = callback
         if self.callback:
-            threading.Thread(target=self.listener).start()
+            self.listener_thread = threading.Thread(target=self.listener, daemon=True)
+            self.listener_thread.start()
 
     def connect_socket(self):
         with self.lock:
+            if not self.running:
+                return
             self.connecting = True
-            while True:
+            while self.running:
                 if self.s:
-                    del self.s
+                    try:
+                        self.s.close()
+                    except:
+                        pass
+                    self.s = None
                 try:
                     self.s = SafeSocket()
                     self.s.connect((self.para["ip"], self.para["port"]))
@@ -46,6 +54,8 @@ class Client:
                         + self.para["group_name"]
                         + "} connect faild, retry after %ds" % self.retry
                     )
+                    if not self.running:
+                        break
                     time.sleep(self.retry)
             self.connecting = False
 
@@ -59,6 +69,8 @@ class Client:
                     print(traceback.format_exc())
                     print("group {" + self.para["group_name"] + "} callback faild")
             except:
+                if not self.running:
+                    break
                 print(
                     "group {"
                     + self.para["group_name"]
@@ -78,12 +90,24 @@ class Client:
 
     def stop(self):
         self.running = False
+        with self.lock:
+            if self.s is not None:
+                try:
+                    self.s.shutdown(2)
+                except:
+                    pass
+                try:
+                    self.s.close()
+                except:
+                    pass
+                self.s = None
         return
 
     def set_callback(self, callback):
         assert not self.callback, "callback is already running"
         self.callback = callback
-        threading.Thread(target=self.listener).start()
+        self.listener_thread = threading.Thread(target=self.listener, daemon=True)
+        self.listener_thread.start()
 
 
 if __name__ == "__main__":

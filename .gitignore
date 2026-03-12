@@ -14,3 +14,17 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# video
+*.mp4
+
+# Runtime logs
+logs/
+*.log
+*_stderr.txt
+bat_run_capture.txt
+bat_run_capture2.txt
+mujoco_launch_err.txt
+mujoco_play_trajectory_stderr.txt
+mujoco_play_trajectory_crash.log
+mujoco_play_trajectory_error.txt

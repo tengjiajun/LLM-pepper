@@ -35,6 +35,8 @@ class VideoPoseEstimator:
         """
         # 初始化MediaPipe Pose
         self.mp_pose = mp.solutions.pose
+        self.mp_drawing = mp.solutions.drawing_utils
+        self.mp_drawing_styles = mp.solutions.drawing_styles
         self.pose = self.mp_pose.Pose(
             model_complexity=model_complexity,
             enable_segmentation=False,
@@ -117,6 +119,38 @@ class VideoPoseEstimator:
         for landmark in landmarks.landmark:
             p.append([landmark.x, landmark.y, landmark.z])
         return np.array(p)
+
+    def serialize_landmarks_2d(self, landmarks):
+        """
+        序列化2D关键点（归一化坐标）
+        """
+        if landmarks is None:
+            return []
+        result = []
+        for lm in landmarks.landmark:
+            result.append({
+                'x': float(lm.x),
+                'y': float(lm.y),
+                'z': float(lm.z),
+                'visibility': float(getattr(lm, 'visibility', 0.0))
+            })
+        return result
+
+    def serialize_landmarks_3d(self, world_landmarks):
+        """
+        序列化3D world关键点
+        """
+        if world_landmarks is None:
+            return []
+        result = []
+        for lm in world_landmarks.landmark:
+            result.append({
+                'x': float(lm.x),
+                'y': float(lm.y),
+                'z': float(lm.z),
+                'visibility': float(getattr(lm, 'visibility', 0.0))
+            })
+        return result
     
     def calculate_angles(self, landmarks):
         """
@@ -201,116 +235,153 @@ class VideoPoseEstimator:
             'details': limit_check
         }
     
-    def process_video(self, video_path, callback=None, target_fps=10):
+    def process_video(self, video_path, callback=None, target_fps=10, save_skeleton_video=False, skeleton_output_path=None):
         """
-        处理视频并以指定频率输出姿态分析结果
-        
+        处理视频并以指定频率输出姿态分析结果，可选导出骨架视频
+
         Args:
             video_path: 视频文件路径
             callback: 可选的回调函数，用于处理每次的姿态结果
                      回调函数格式: callback(frame_number, timestamp, result)
             target_fps: 目标处理频率，默认每秒10次
-            
+            save_skeleton_video: 是否导出骨架视频
+            skeleton_output_path: 骨架视频输出路径
+
         Returns:
             list: 所有处理帧的姿态分析结果列表
         """
-        # 加载视频
         cap = self.load_video(video_path)
         if cap is None:
             return None
-        
+
         results_list = []
         frame_number = 0
-        frame_interval = 1.0 / target_fps  # 处理间隔
-        
-        # 获取视频信息
+        frame_interval = 1.0 / target_fps
+
         total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
         video_fps = cap.get(cv.CAP_PROP_FPS)
+        frame_w = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
+        frame_h = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
         duration = total_frames / video_fps if video_fps > 0 else 0
-        
+
         print(f"视频信息:")
         print(f"  文件路径: {video_path}")
         print(f"  总帧数: {total_frames}")
         print(f"  视频FPS: {video_fps:.2f}")
         print(f"  视频时长: {duration:.2f}秒")
         print(f"  处理频率: {target_fps}Hz (每{frame_interval*1000:.0f}ms一次)")
+        if save_skeleton_video:
+            print(f"  骨架视频导出: 开启")
         print("=" * 60)
-        
+
+        writer = None
+        if save_skeleton_video:
+            if not skeleton_output_path:
+                skeleton_output_path = os.path.splitext(video_path)[0] + "_skeleton.mp4"
+            out_fps = target_fps if target_fps > 0 else (video_fps if video_fps > 0 else 10)
+            fourcc = cv.VideoWriter_fourcc(*"mp4v")
+            writer = cv.VideoWriter(skeleton_output_path, fourcc, out_fps, (frame_w, frame_h))
+            if not writer.isOpened():
+                print(f"警告: 无法创建骨架视频文件 {skeleton_output_path}，将继续只输出角度数据")
+                writer = None
+
         start_time = time.time()
         next_process_time = 0
         processed_count = 0
-        
+
         try:
             while True:
                 ret, frame = cap.read()
                 if not ret:
                     break
-                
-                # 计算当前视频时间戳
+
                 current_video_time = frame_number / video_fps if video_fps > 0 else 0
-                
-                # 检查是否到了处理时间
+
                 if current_video_time >= next_process_time:
                     processed_count += 1
-                    
-                    # 处理当前帧
                     success, pose_results = self.process_image(frame)
-                    
+
                     if success:
-                        # 计算角度
                         angle_result = self.calculate_angles(pose_results.pose_world_landmarks)
-                        
-                        # 检查限制
                         limit_result = self.check_limits(angle_result['angles_rad'])
-                        
-                        # 构建结果
+                        landmarks_2d = self.serialize_landmarks_2d(pose_results.pose_landmarks)
+                        landmarks_3d = self.serialize_landmarks_3d(pose_results.pose_world_landmarks)
+                        visibility_values = [p['visibility'] for p in landmarks_2d]
+                        mean_visibility = float(sum(visibility_values) / len(visibility_values)) if visibility_values else 0.0
                         frame_result = {
                             'success': True,
                             'frame_number': frame_number,
                             'video_timestamp': current_video_time,
                             'process_timestamp': time.time() - start_time,
+                            'image_w': int(frame.shape[1]),
+                            'image_h': int(frame.shape[0]),
+                            'pose_landmarks2d': landmarks_2d,
+                            'pose_world_landmarks3d': landmarks_3d,
+                            'quality': {
+                                'mean_visibility': mean_visibility,
+                                'landmark_count_2d': len(landmarks_2d),
+                                'landmark_count_3d': len(landmarks_3d)
+                            },
                             'angles': angle_result,
                             'safety_check': limit_result
                         }
-                        
                         results_list.append(frame_result)
-                        
-                        # 打印当前结果（简化格式）
+
                         angles_str = [f'{x:.1f}' for x in angle_result['angles_deg']]
                         safety_status = "✓" if limit_result['all_safe'] else "⚠"
                         print(f"第{processed_count:3d}次 | 帧{frame_number:4d} | {current_video_time:6.2f}s | {safety_status} | 角度: {angles_str}")
-                        
-                        # 调用回调函数
+
                         if callback:
                             callback(frame_number, current_video_time, frame_result)
-                    
                     else:
-                        # 未检测到姿态
                         frame_result = {
                             'success': False,
                             'frame_number': frame_number,
                             'video_timestamp': current_video_time,
                             'process_timestamp': time.time() - start_time,
+                            'image_w': int(frame.shape[1]),
+                            'image_h': int(frame.shape[0]),
+                            'pose_landmarks2d': [],
+                            'pose_world_landmarks3d': [],
+                            'quality': {
+                                'mean_visibility': 0.0,
+                                'landmark_count_2d': 0,
+                                'landmark_count_3d': 0
+                            },
                             'message': '未检测到人体姿态'
                         }
                         results_list.append(frame_result)
                         print(f"第{processed_count:3d}次 | 帧{frame_number:4d} | {current_video_time:6.2f}s | ✗ | 未检测到姿态")
-                    
-                    # 设置下次处理时间
+
+                    if writer is not None:
+                        draw_frame = frame.copy()
+                        if success and pose_results and pose_results.pose_landmarks:
+                            self.mp_drawing.draw_landmarks(
+                                draw_frame,
+                                pose_results.pose_landmarks,
+                                self.mp_pose.POSE_CONNECTIONS,
+                                landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style(),
+                            )
+                        status_text = "POSE: OK" if success else "POSE: MISS"
+                        cv.putText(draw_frame, f"t={current_video_time:.2f}s", (20, 30), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                        cv.putText(draw_frame, status_text, (20, 65), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0) if success else (0, 0, 255), 2)
+                        writer.write(draw_frame)
+
                     next_process_time += frame_interval
-                
+
                 frame_number += 1
-                
-                # 适当延时避免CPU过载
+
                 if frame_number % 100 == 0:
                     time.sleep(0.001)
-        
+
         finally:
             cap.release()
-        
+            if writer is not None:
+                writer.release()
+
         processing_time = time.time() - start_time
         successful_count = len([r for r in results_list if r['success']])
-        
+
         print("=" * 60)
         print(f"处理完成:")
         print(f"  总处理时间: {processing_time:.2f}秒")
@@ -319,7 +390,9 @@ class VideoPoseEstimator:
         print(f"  失败次数: {len(results_list) - successful_count}")
         print(f"  实际处理频率: {len(results_list)/processing_time:.2f}Hz")
         print(f"  成功率: {successful_count/len(results_list)*100:.1f}%" if results_list else "0%")
-        
+        if writer is not None and skeleton_output_path:
+            print(f"  骨架视频已保存: {skeleton_output_path}")
+
         return results_list
     
     def save_results_to_json(self, results, output_path):
@@ -345,17 +418,26 @@ def main():
     import sys
     
     if len(sys.argv) < 2:
-        print("用法: python pose_estimator_video.py <视频路径> [输出频率]")
+        print("用法: python pose_estimator_video.py <视频路径> [输出频率] [--save-video]")
         print("参数:")
         print("  视频路径: 支持的视频格式 (.mp4, .avi, .mov, .mkv, .wmv, .flv, .webm)")
         print("  输出频率: 每秒输出次数，默认为10 (可选)")
+        print("  --save-video: 导出骨架叠加视频 *_skeleton.mp4 (可选)")
         print("示例:")
         print("  python pose_estimator_video.py video.mp4")
         print("  python pose_estimator_video.py video.mp4 10")
+        print("  python pose_estimator_video.py video.mp4 10 --save-video")
         return
     
     video_path = sys.argv[1]
-    target_fps = int(sys.argv[2]) if len(sys.argv) > 2 else 10
+    extra_args = sys.argv[2:]
+    save_video = '--save-video' in extra_args
+    target_fps = 10
+    for arg in extra_args:
+        if arg.startswith('--'):
+            continue
+        target_fps = int(arg)
+        break
     
     if not os.path.exists(video_path):
         print(f"错误: 视频文件不存在 {video_path}")
@@ -372,6 +454,8 @@ def main():
     
     print(f"开始处理视频: {video_path}")
     print(f"输出频率: 每秒{target_fps}次")
+    if save_video:
+        print("骨架视频导出: 开启")
     print("=" * 60)
     
     # 创建视频姿态估计器
@@ -385,7 +469,12 @@ def main():
             pass
     
     # 处理视频
-    results = estimator.process_video(video_path, callback=result_callback, target_fps=target_fps)
+    results = estimator.process_video(
+        video_path,
+        callback=result_callback,
+        target_fps=target_fps,
+        save_skeleton_video=save_video,
+    )
     
     if results:
         successful_results = [r for r in results if r['success']]

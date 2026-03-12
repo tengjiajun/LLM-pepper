@@ -1,0 +1,66 @@
+{
+  "input": "F:\\LLM-pepper\\LLM-pepper\\naoqi-pose-retargeting\\video_pose_results.json",
+  "processed_frames": 64,
+  "pepper_written": 48,
+  "unitree_written": 48,
+  "pepper_output": "F:\\LLM-pepper\\LLM-pepper\\naoqi-pose-retargeting\\converted_outputs\\pepper_pose_stream.jsonl",
+  "unitree_output": "F:\\LLM-pepper\\LLM-pepper\\naoqi-pose-retargeting\\converted_outputs\\unitree_h1_upper_body_trajectory.jsonl",
+  "joint_order_pepper": [
+    "LShoulderPitch",
+    "LShoulderRoll",
+    "LElbowYaw",
+    "LElbowRoll",
+    "RShoulderPitch",
+    "RShoulderRoll",
+    "RElbowYaw",
+    "RElbowRoll",
+    "HipPitch"
+  ],
+  "unitree_map": {
+    "left_shoulder_pitch": [
+      "LShoulderPitch",
+      1.0,
+      -1.5707963267948966
+    ],
+    "left_shoulder_roll": [
+      "LShoulderRoll",
+      1.0,
+      -0.0
+    ],
+    "left_shoulder_yaw": [
+      "LElbowYaw",
+      -1.0,
+      1.5707963267948966
+    ],
+    "right_shoulder_pitch": [
+      "RShoulderPitch",
+      1.0,
+      -1.5707963267948966
+    ],
+    "right_shoulder_roll": [
+      "RShoulderRoll",
+      1.0,
+      -0.0
+    ],
+    "right_shoulder_yaw": [
+      "RElbowYaw",
+      -1.0,
+      1.5707963267948966
+    ],
+    "left_elbow": [
+      "LElbowRoll",
+      -1.0,
+      1.5707963267948966
+    ],
+    "right_elbow": [
+      "RElbowRoll",
+      -1.0,
+      1.5707963267948966
+    ],
+    "torso": [
+      "HipPitch",
+      1.0,
+      0.0
+    ]
+  }
+}

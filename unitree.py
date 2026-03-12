@@ -33,7 +33,9 @@ def main():
     os.environ["SERVER_PORT"] = str(args.server_port)
     os.environ["UNITREE_CMD_VEL_TOPIC"] = str(args.cmd_vel_topic)
 
-    import unitree_module  # noqa: F401
+    import unitree_module
+
+    unitree_module.main()
 
 
 if __name__ == "__main__":
